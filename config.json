@@ -20,16 +20,16 @@
         }
 	],
 
-	"permissions": [
-        "redcap_save_record"
-	],
-
 	"enable-every-page-hooks-on-system-pages": false,
 
 	"links": {
 		"project": [
-
-		],
+            {
+                "name": "Pro-HF: Appointment Loader",
+                "icon": "gear",
+                "url": "pages/runLoader.php"
+            }
+        ],
 		"control-center": [
 
 		]
@@ -47,7 +47,6 @@
 			"type": "checkbox"
 		}
 	],
-
 
 	"system-settings": [
 		{
@@ -70,20 +69,6 @@
         }
 	],
     "crons": [
-        {
-            "cron_name": "move_data_at_730",
-            "cron_description": "This cron will run once a day at 7:30am to move appointments from the appointment DB to the registry DB",
-            "method": "moveApptDataToRegistry",
-            "cron_hour": "7",
-            "cron_minute": "30"
-        },
-        {
-            "cron_name": "move_data_at_1130",
-            "cron_description": "This cron will run once a day at 11:30am to move appointments from the appointment DB to the registry DB",
-            "method": "moveApptDataToRegistry",
-            "cron_hour": "11",
-            "cron_minute": "30"
-        }
     ],
 
 	"compatibility": {

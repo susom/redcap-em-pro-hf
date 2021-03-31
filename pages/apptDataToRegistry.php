@@ -1,6 +1,6 @@
 <?php
 namespace Stanford\ProHF;
-/** @var \Stanford\ProHF\preTermBabies $module */
+/** @var \Stanford\ProHF\ProHF $module */
 
 
 use \REDCap;
@@ -18,7 +18,6 @@ $registry_pid = $module->getSystemSetting("registry-db");
 $appt_pid = $module->getSystemSetting("appt-db");
 if ($pid <> $appt_pid) {
     $module->emError("This project does not match the appointment DB ($pid) - exiting");
-    print false;
     return;
 }
 
@@ -39,8 +38,6 @@ $status_update = savePatientData($registry_pid, $update_patients);
 // Save success status
 if ($status_new and $status_update) {
     $module->emDebug("Successfully processed appointments for PRO-HF");
-    print true;
-    return;
 } else {
     if (!$status_new) {
         $module->emError("Could not update the Registry project $registry_pid with new patients");
@@ -48,9 +45,12 @@ if ($status_new and $status_update) {
     if (!$status_update) {
         $module->emError("Could not update the Registry project $registry_pid with updated appointments");
     }
-    print false;
-    return;
 }
+
+// go back to the runLoader page
+$loader_url = $module->getUrl("pages/runLoader.php", false, true);
+header("Location: " . $loader_url);
+exit;
 
 function retrieveAppointmentList($appt_pid) {
 
