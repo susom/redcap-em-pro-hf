@@ -1,7 +1,7 @@
 {
-	"name": "ClassNameHere",
+	"name": "ProHF",
 
-	"namespace": "Stanford\\ClassNameHere",
+	"namespace": "Stanford\\ProHF",
 
 	"description": "A template for a REDCap External Module",
 
@@ -9,19 +9,22 @@
 
 	"authors": [
 		{
-			"name": "Andrew Martin",
-			"email": "andy123@stanford.edu",
+			"name": "Alvaro Alvarez",
+			"email": "alvaro1@stanford.edu",
 			"institution": "Stanford University"
-		}
+		},
+        {
+            "name": "Lee Ann Yasukawa",
+            "email": "yasukawa@stanfordhealthcare.org",
+            "institution": "Stanford HealthCare"
+        }
 	],
 
 	"permissions": [
-		"redcap_module_system_enable",
-		"redcap_module_project_enable",
-		"redcap_module_save_configuration"
+        "redcap_save_record"
 	],
-	
-	"enable-every-page-hooks-on-system-pages": false,	
+
+	"enable-every-page-hooks-on-system-pages": false,
 
 	"links": {
 		"project": [
@@ -33,7 +36,7 @@
 	},
 
 	"no-auth-pages": [
-
+        "pages/apptDataToRegistry"
 	],
 
 	"project-settings": [
@@ -52,8 +55,36 @@
 			"name": "<b>Enable Debug Logging (system-wide)</b><i>(optional)</i> Requires installation and configuration of emLogger",
 			"required": false,
 			"type": "checkbox"
-		}
+		},
+        {
+            "key": "registry-db",
+            "name": "<b>Registry project for PRO HF</b><i></i> Main registry project for Pro-HF Trial DB",
+            "required": true,
+            "type": "project-id"
+        },
+        {
+            "key": "appt-db",
+            "name": "<b>Appointment project for PRO HF</b><i></i> Intermediate DB which stores HL7 appointments from CEP alerts",
+            "required": true,
+            "type": "project-id"
+        }
 	],
+    "crons": [
+        {
+            "cron_name": "move_data_at_730",
+            "cron_description": "This cron will run once a day at 7:30am to move appointments from the appointment DB to the registry DB",
+            "method": "moveApptDataToRegistry",
+            "cron_hour": "7",
+            "cron_minute": "30"
+        },
+        {
+            "cron_name": "move_data_at_1130",
+            "cron_description": "This cron will run once a day at 11:30am to move appointments from the appointment DB to the registry DB",
+            "method": "moveApptDataToRegistry",
+            "cron_hour": "11",
+            "cron_minute": "30"
+        }
+    ],
 
 	"compatibility": {
 		"php-version-min": "",
