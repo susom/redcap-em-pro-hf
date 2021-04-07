@@ -45,7 +45,13 @@
 			"name": "<b>Enable Debug Logging</b><br><i>(optional)</i> Requires installation and configuration of emLogger",
 			"required": false,
 			"type": "checkbox"
-		}
+		},
+        {
+            "key": "provider-list",
+            "name": "<b>JSON encoded provider list</b><br><i></i>JSON list that will get parsed and fill-in provider name and email address into Registry project",
+            "required": false,
+            "type": "textarea"
+        }
 	],
 
 	"system-settings": [

@@ -23,13 +23,18 @@ if ($pid <> $appt_pid) {
 
 // Retrieve all appointments that have not yet happened
 list($appointments, $appt_fields) = retrieveAppointmentList($appt_pid);
+$module->emDebug("Retrieved " . count($appointments) . " appointments");
 
 // Retrieve all patients in registry project
 list($patients, $pat_fields) = retrieveRegistryPatients($registry_pid);
+$module->emDebug("Retrieved " . count($patients) . " patients");
 
 // Update any patients that have not yet decided on participating in the study
 list($new_patients, $update_patients) =
     compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fields, $registry_pid);
+$module->emDebug("Number of new patients: " . count($new_patients));
+$module->emDebug("Number of updated patients: " . count($update_patients));
+
 
 // Save new patients with their closest appointment date
 $status_new = savePatientData($registry_pid, $new_patients);
@@ -154,16 +159,25 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
     $update_fields = array('appt_date', 'pat_enc_csn_id', 'appt_status', 'appt_cancelled_reason', 'clinician',
                            'newpt', 'virtualvisit', 'hf', 'visit_type');
 
+    // Retrieve the json list that stores the provider's names and emails
+    $provider_list = $module->getProjectSetting('provider-list');
+    $providers = json_decode($provider_list, true);
+
     // Loop over appointments and see if this person exists in the registry project
     $new_patient_list = array();
     $update_patient_list = array();
     foreach($appointments as $mrn => $appt) {
+
+        // Find the name and email of the attending for this appt
+        $attending = $providers[upper($appt['clinician'])];
 
         if (empty($patients[$mrn])) {
 
             // This person does not exist in the registry project yet so add them
             $new_patient = array_intersect_key($appt, array_flip($common_fields));
             $new_patient['record_id'] = $next_record_id++;
+            $new_patient['clinician_attending'] = $attending['name'];
+            $new_patient['clinician_email'] = $attending['email'];
             $new_patient_list[] = $new_patient;
 
         } else {
@@ -171,6 +185,8 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             // Just update the appointment info and not the demographics
             $update_patient = array_intersect_key($appt, array_flip($update_fields));
             $update_patient['record_id'] = $patients['record_id'];
+            $new_patient['clinician_attending'] = $attending['name'];
+            $new_patient['clinician_email'] = $attending['email'];
             $update_patient_list[] = $update_patient;
         }
     }
@@ -202,7 +218,12 @@ function findNextRecord($registry_pid) {
     $record_list = REDCap::getData($registry_pid, 'array', null, array('record_id'));
     $record_ids = array_keys($record_list);
     $max_record_id = max($record_ids);
+    if (empty($max_record_id)) {
+        $max_record_id = 1;
+    } else {
+        $max_record_id = $max_record_id + 1;
+    }
 
-    return ($max_record_id+1);
+    return $max_record_id;
 
 }
