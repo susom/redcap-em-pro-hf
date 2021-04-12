@@ -178,6 +178,7 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             $new_patient['record_id'] = $next_record_id++;
             $new_patient['clinician_attending'] = $attending['name'];
             $new_patient['clinician_email'] = $attending['email'];
+            $new_patient['clinician_code'] = $attending['code'];
             $new_patient_list[] = $new_patient;
 
         } else {
@@ -187,6 +188,7 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             $update_patient['record_id'] = $patients['record_id'];
             $new_patient['clinician_attending'] = $attending['name'];
             $new_patient['clinician_email'] = $attending['email'];
+            $new_patient['clinician_code'] = $attending['code'];
             $update_patient_list[] = $update_patient;
         }
     }
