@@ -28,21 +28,21 @@ $module->emDebug("Retrieved " . count($appointments) . " appointments");
 // Retrieve all patients in registry project
 list($patients, $pat_fields) = retrieveRegistryPatients($registry_pid);
 $module->emDebug("Retrieved " . count($patients) . " patients");
-
 // Update any patients that have not yet decided on participating in the study
-list($new_patients, $update_patients) =
-    compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fields, $registry_pid);
+list($new_patients, $update_patients) =compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fields, $registry_pid);
 $module->emDebug("Number of new patients: " . count($new_patients));
 $module->emDebug("Number of updated patients: " . count($update_patients));
 
 
 // Save new patients with their closest appointment date
+
 $status_new = savePatientData($registry_pid, $new_patients);
 $status_update = savePatientData($registry_pid, $update_patients);
 
 // Save success status
 if ($status_new and $status_update) {
     $module->emDebug("Successfully processed appointments for PRO-HF");
+    //\REDCap::logEvent("PRO-HF EM","Successfully processed appointments for PRO-HF");
 } else {
     if (!$status_new) {
         $module->emError("Could not update the Registry project $registry_pid with new patients");
@@ -69,7 +69,8 @@ function retrieveAppointmentList($appt_pid) {
     // Create the filter so we only retrieve appointments that in the future
     $now = date('Y-m-d H:i:s');
     $filter = '[appt_date] > "' . $now . '"';
-
+    
+    
     // Retrieve all the appointment information from the demographics form
     $params = array(
         'return_format' => 'array',
@@ -84,27 +85,28 @@ function retrieveAppointmentList($appt_pid) {
     foreach($all_appts as $record_id => $this_appt) {
         $one_appt = $this_appt[$first_event];
 
-        // If this appt was canceled, don't add it to the list of available appts
-        if ($one_appt['appt_status'] != 'Canceled') {
-
             // Check to see if we already have an appt for this patient, if not, add it.
             $mrn = str_replace('-', '', $one_appt['mrn']);
             $one_appt['mrn'] = $mrn;
-            if (empty($appointments[$mrn])) {
+            if (empty($appointments[$mrn]) ) {
+                                
                 $appointments[$mrn] = $one_appt;
             } else {
-
                 // If this patient already has an appt, determine if this one is sooner and if so, replace the old one
                 $saved_appt = $appointments[$mrn]['appt_date'];
                 $new_appt_date = $one_appt['appt_date'];
-                if ($saved_appt > $new_appt_date) {
+                                   
+                if ($saved_appt > $new_appt_date ) {              
                     // This new appt date is closer to today than the saved appt so save this new date
-                    $appointments[$mrn] = $one_appt;
+                    $appointments[$mrn] = $one_appt;  
                 }
             }
-        }
+            // If this appt was canceled, remove the app_date
+            if ($appointments[$mrn]['appt_status'] == 'Canceled'){
+                $appointments[$mrn]['appt_date']='';  
+            }
     }
-
+    
     return array($appointments, $fields);
 }
 
@@ -126,7 +128,7 @@ function retrieveRegistryPatients($registry_pid) {
     $fields = array_keys($reg_data_dictionary->forms[$first_form]['fields']);
 
     // Create the filter so we only retrieve patients who have not decided on consent yet.
-    $filter = '[cons_eng] = "" and [consent_spanish] = "" and [declined] = ""';
+    $filter = '[cons_eng] = "" and [cons_span] = "" and [declined] = ""';
 
     // Retrieve all the appointment information from the demographics form
     $params = array(
@@ -135,8 +137,8 @@ function retrieveRegistryPatients($registry_pid) {
         'filterLogic'   => $filter,
         'fields'        => $fields
     );
-    $all_patients = REDCap::getData($params);
-
+    $all_patients = REDCap::getData($params);  
+    
     // Reformat the data so it is indexed by MRN
     $patients = array();
     foreach($all_patients as $record_id => $one_patient) {
@@ -152,12 +154,14 @@ function retrieveRegistryPatients($registry_pid) {
 function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fields, $registry_pid) {
 
     global $module;
-
+     
+    
     // For new patients, find the next record id and get list of fields that are common between the 2 projects
     $next_record_id = findNextRecord($registry_pid);
     $common_fields = array_intersect($appt_fields, $pat_fields);
-    $update_fields = array('appt_date', 'pat_enc_csn_id', 'appt_status', 'appt_cancelled_reason', 'clinician',
-                           'newpt', 'virtualvisit', 'hf', 'visit_type');
+    
+    $update_fields = array('appt_date_time','appt_date', 'pat_enc_csn_id', 'appt_status', 'appt_cancelled_reason', 'clinician',
+                           'newpt', 'virtualvisit', 'hf', 'visit_type','email','email_overwrite');
 
     // Retrieve the json list that stores the provider's names and emails
     $provider_list = $module->getProjectSetting('provider-list');
@@ -170,25 +174,33 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
 
         // Find the name and email of the attending for this appt
         $attending = $providers[upper($appt['clinician'])];
-
+        
         if (empty($patients[$mrn])) {
-
+            
             // This person does not exist in the registry project yet so add them
             $new_patient = array_intersect_key($appt, array_flip($common_fields));
             $new_patient['record_id'] = $next_record_id++;
             $new_patient['clinician_attending'] = $attending['name'];
-            $new_patient['clinician_email'] = $attending['email'];
+            $new_patient['clinician_email'] = extractEmailFromText($attending['email']);
+            $new_patient['email'] = extractEmailFromText($appt['email']);
+            $new_patient['email_overwrite'] = extractEmailFromText($appt['email_overwrite']);
             $new_patient['clinician_code'] = $attending['code'];
+            $new_patient['appt_date_time'] = $appt['appt_date'];
+            $new_patient['appt_date'] = substr($appt['appt_date'],0,10); 
             $new_patient_list[] = $new_patient;
 
         } else {
 
             // Just update the appointment info and not the demographics
-            $update_patient = array_intersect_key($appt, array_flip($update_fields));
-            $update_patient['record_id'] = $patients['record_id'];
+            $update_patient = array_intersect_key($appt, array_flip($update_fields));     
+            $update_patient['record_id'] = $patients[$mrn]['record_id'];
             $new_patient['clinician_attending'] = $attending['name'];
-            $new_patient['clinician_email'] = $attending['email'];
+            $new_patient['clinician_email'] = extractEmailFromText($attending['email']);
             $new_patient['clinician_code'] = $attending['code'];
+            $new_patient['appt_date_time'] = $appt['appt_date'];
+            $update_patient['email'] = extractEmailFromText($appt['email']);
+            $update_patient['email_overwrite'] = extractEmailFromText($appt['email_overwrite']);
+            $update_patient['appt_date'] = substr($appt['appt_date'],0,10);
             $update_patient_list[] = $update_patient;
         }
     }
@@ -201,15 +213,18 @@ function savePatientData($pid, $data) {
 
     global $module;
 
-    $response = REDCap::saveData($pid, 'json', json_encode($data));
-    if (empty($response['error'])) {
-        $module->emDebug("Updated records: " . json_encode(array_keys($response['ids'])));
-        return true;
-    } else {
-        $module->emError("Could not save patient data for project $pid. Error " . $response['error']);
-        return false;
-    }
+    $module->emDebug("Project ID:$pid");
+    $module->emDebug("data:".count($data));
+    foreach($data as $one_patient){       
+        $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)));
+        if (!empty($response['errors'])) {
+            $module->emError("Could not save patient data for project $pid. Error " . $response['errors']);
+            $module->emDebug("Return From Save Data:" . json_encode($response));
+            //REDCap::logEvent("PRO-HF EM","Could not save patient data for project Error " .json_encode( $response['errors']));
+        } 
 
+    }
+    return true;
 }
 
 function findNextRecord($registry_pid) {
@@ -229,3 +244,11 @@ function findNextRecord($registry_pid) {
     return $max_record_id;
 
 }
+
+function extractEmailFromText($string){
+    // try to extract a valid email address from text field returns empty string if not possible
+    $pattern = "/[a-z0-9_\-\+\.]+@[a-z0-9\-]+\.([a-z]{2,4})(?:\.[a-z]{2})?/i"; 
+    preg_match_all($pattern, $string, $matches);
+    return trim($matches[0][0]);
+}
+
