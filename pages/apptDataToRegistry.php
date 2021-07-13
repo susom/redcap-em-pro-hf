@@ -215,7 +215,8 @@ function savePatientData($pid, $data) {
 
     $module->emDebug("Project ID:$pid");
     $module->emDebug("data:".count($data));
-    foreach($data as $one_patient){       
+    foreach($data as $one_patient){   
+        $one_patient['enrollment_complete']=2;
         $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)));
         if (!empty($response['errors'])) {
             $module->emError("Could not save patient data for project $pid. Error " . $response['errors']);
