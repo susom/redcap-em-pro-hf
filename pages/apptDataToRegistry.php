@@ -104,6 +104,7 @@ function retrieveAppointmentList($appt_pid) {
             // If this appt was canceled, remove the app_date
             if ($appointments[$mrn]['appt_status'] == 'Canceled'){
                 $appointments[$mrn]['appt_date']='';  
+                $appointments[$mrn]['appt_date_time']='';
             }
     }
     
@@ -217,7 +218,7 @@ function savePatientData($pid, $data) {
     $module->emDebug("data:".count($data));
     foreach($data as $one_patient){   
         $one_patient['enrollment_complete']=2;
-        $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)));
+        $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)),'overwrite');
         if (!empty($response['errors'])) {
             $module->emError("Could not save patient data for project $pid. Error " . $response['errors']);
             $module->emDebug("Return From Save Data:" . json_encode($response));
