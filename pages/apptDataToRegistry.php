@@ -184,7 +184,7 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             $new_patient['clinician_email'] = extractEmailFromText($attending['email']);
             $new_patient['email'] = extractEmailFromText($appt['email']);
             $new_patient['email_overwrite'] = extractEmailFromText($appt['email_overwrite']);
-            $new_patient['clinician_code'] = $attending['code'];
+            $new_patient['clinstrata'] = $attending['code'];
             $new_patient['appt_date_time'] = $appt['appt_date'];
             $new_patient['appt_date'] = substr($appt['appt_date'],0,10); 
             $new_patient_list[] = $new_patient;
@@ -196,7 +196,7 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             $update_patient['record_id'] = $patients[$mrn]['record_id'];
             $new_patient['clinician_attending'] = $attending['name'];
             $new_patient['clinician_email'] = extractEmailFromText($attending['email']);
-            $new_patient['clinician_code'] = $attending['code'];
+            $new_patient['clinstrata'] = $attending['code'];
             $new_patient['appt_date_time'] = $appt['appt_date'];
             $update_patient['email'] = extractEmailFromText($appt['email']);
             $update_patient['email_overwrite'] = extractEmailFromText($appt['email_overwrite']);
