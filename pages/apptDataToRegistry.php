@@ -66,11 +66,32 @@ function retrieveAppointmentList($appt_pid) {
     $first_event = $Proj->firstEventId;
     $fields = array_keys($Proj->forms[$first_form]['fields']);
 
+    // There is a config entry where Alex can specify a list of providers that we will filter  on.
+    // This is to allow him to slowly add providers once we verify the workflow is what they want.
+    $provider_filter_list = $module->getProjectSetting("enabled-providers");
+    if (!empty($provider_filter_list)) {
+
+        // This is a comma separated list of providers to filter on  (i.e. "Sandhu, Ashley")
+        $list = explode(',', $provider_filter_list);
+        $providers =  '';
+        foreach($list as $name) {
+            $prov_name = upper(trim($name));
+            if (empty($providers)) {
+                $providers = ' and  (starts_with([clinician], "' . $prov_name . '")';
+            } else {
+                $providers .= ' or starts_with([clinician], "' . $prov_name . '")';
+            }
+        }
+        $providers .= ')';
+    } else {
+        $providers = '';
+    }
+
     // Create the filter so we only retrieve appointments that in the future
     $now = date('Y-m-d H:i:s');
-    $filter = '[appt_date] > "' . $now . '"';
-    
-    
+    $filter = '[appt_date] > "' . $now . '"' . $providers;
+    $module->emDebug("Filter: " . $filter);
+
     // Retrieve all the appointment information from the demographics form
     $params = array(
         'return_format' => 'array',
@@ -89,25 +110,25 @@ function retrieveAppointmentList($appt_pid) {
             $mrn = str_replace('-', '', $one_appt['mrn']);
             $one_appt['mrn'] = $mrn;
             if (empty($appointments[$mrn]) ) {
-                                
+
                 $appointments[$mrn] = $one_appt;
             } else {
                 // If this patient already has an appt, determine if this one is sooner and if so, replace the old one
                 $saved_appt = $appointments[$mrn]['appt_date'];
                 $new_appt_date = $one_appt['appt_date'];
-                                   
-                if ($saved_appt > $new_appt_date ) {              
+
+                if ($saved_appt > $new_appt_date ) {
                     // This new appt date is closer to today than the saved appt so save this new date
-                    $appointments[$mrn] = $one_appt;  
+                    $appointments[$mrn] = $one_appt;
                 }
             }
             // If this appt was canceled, remove the app_date
             if ($appointments[$mrn]['appt_status'] == 'Canceled'){
-                $appointments[$mrn]['appt_date']='';  
+                $appointments[$mrn]['appt_date']='';
                 $appointments[$mrn]['appt_date_time']='';
             }
     }
-    
+
     return array($appointments, $fields);
 }
 
@@ -138,8 +159,8 @@ function retrieveRegistryPatients($registry_pid) {
         'filterLogic'   => $filter,
         'fields'        => $fields
     );
-    $all_patients = REDCap::getData($params);  
-    
+    $all_patients = REDCap::getData($params);
+
     // Reformat the data so it is indexed by MRN
     $patients = array();
     foreach($all_patients as $record_id => $one_patient) {
@@ -155,12 +176,12 @@ function retrieveRegistryPatients($registry_pid) {
 function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fields, $registry_pid) {
 
     global $module;
-     
-    
+
+
     // For new patients, find the next record id and get list of fields that are common between the 2 projects
     $next_record_id = findNextRecord($registry_pid);
     $common_fields = array_intersect($appt_fields, $pat_fields);
-    
+
     $update_fields = array('appt_date_time','appt_date', 'pat_enc_csn_id', 'appt_status', 'appt_cancelled_reason', 'clinician',
                            'newpt', 'virtualvisit', 'hf', 'visit_type','email','email_overwrite');
 
@@ -175,9 +196,9 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
 
         // Find the name and email of the attending for this appt
         $attending = $providers[upper($appt['clinician'])];
-        
+
         if (empty($patients[$mrn])) {
-            
+
             // This person does not exist in the registry project yet so add them
             $new_patient = array_intersect_key($appt, array_flip($common_fields));
             $new_patient['record_id'] = $next_record_id++;
@@ -187,13 +208,13 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             $new_patient['email_overwrite'] = extractEmailFromText($appt['email_overwrite']);
             $new_patient['clinstrata'] = $attending['code'];
             $new_patient['appt_date_time'] = $appt['appt_date'];
-            $new_patient['appt_date'] = substr($appt['appt_date'],0,10); 
+            $new_patient['appt_date'] = substr($appt['appt_date'],0,10);
             $new_patient_list[] = $new_patient;
 
         } else {
 
             // Just update the appointment info and not the demographics
-            $update_patient = array_intersect_key($appt, array_flip($update_fields));     
+            $update_patient = array_intersect_key($appt, array_flip($update_fields));
             $update_patient['record_id'] = $patients[$mrn]['record_id'];
             $new_patient['clinician_attending'] = $attending['name'];
             $new_patient['clinician_email'] = extractEmailFromText($attending['email']);
@@ -216,14 +237,14 @@ function savePatientData($pid, $data) {
 
     $module->emDebug("Project ID:$pid");
     $module->emDebug("data:".count($data));
-    foreach($data as $one_patient){   
+    foreach($data as $one_patient){
         $one_patient['enrollment_complete']=2;
         $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)),'overwrite');
         if (!empty($response['errors'])) {
             $module->emError("Could not save patient data for project $pid. Error " . $response['errors']);
             $module->emDebug("Return From Save Data:" . json_encode($response));
             //REDCap::logEvent("PRO-HF EM","Could not save patient data for project Error " .json_encode( $response['errors']));
-        } 
+        }
 
     }
     return true;
@@ -249,7 +270,7 @@ function findNextRecord($registry_pid) {
 
 function extractEmailFromText($string){
     // try to extract a valid email address from text field returns empty string if not possible
-    $pattern = "/[a-z0-9_\-\+\.]+@[a-z0-9\-]+\.([a-z]{2,4})(?:\.[a-z]{2})?/i"; 
+    $pattern = "/[a-z0-9_\-\+\.]+@[a-z0-9\-]+\.([a-z]{2,4})(?:\.[a-z]{2})?/i";
     preg_match_all($pattern, $string, $matches);
     return trim($matches[0][0]);
 }

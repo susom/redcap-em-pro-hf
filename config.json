@@ -51,6 +51,12 @@
             "name": "<b>JSON encoded provider list</b><br><i></i>JSON list that will get parsed and fill-in provider name and email address into Registry project",
             "required": false,
             "type": "textarea"
+        },
+        {
+            "key": "enabled-providers",
+            "name": "<b>Comma separated list of enabled providers</b><br><i></i>When this field is not empty, only the providers listed will be included in the appointment transfer (ex: sandhu, Ashley, ...). Only add last names that match the names of the clinicians in the appointment records. Case does not matter.",
+            "required": false,
+            "type": "textarea"
         }
 	],
 
