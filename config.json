@@ -81,6 +81,13 @@
         }
 	],
     "crons": [
+        {
+            "cron_name": "move_appt_to_trial_db",
+            "cron_description": "This cron will run once a day to move and update appointments from the Appointment DB to the Trial DB",
+            "method": "moveApptDataToRegistry",
+            "cron_hour": "23",
+            "cron_minute": "0"
+        }
     ],
 
 	"compatibility": {
