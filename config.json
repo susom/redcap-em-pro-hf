@@ -22,7 +22,7 @@
 
 	"enable-every-page-hooks-on-system-pages": false,
 
-	"links": {
+    "links": {
 		"project": [
             {
                 "name": "Pro-HF: Appointment Loader",
@@ -86,7 +86,7 @@
             "cron_description": "This cron will run once a day to move and update appointments from the Appointment DB to the Trial DB",
             "method": "moveApptDataToRegistry",
             "cron_hour": "23",
-            "cron_minute": "0"
+            "cron_minute": "00"
         }
     ],
 
