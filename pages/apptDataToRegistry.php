@@ -8,6 +8,7 @@ use \Project;
 use \Exception;
 
 $pid = isset($_GET['pid']) && !empty($_GET['pid']) ? $_GET['pid'] : null;
+$web = isset($_GET['web']) && !empty($_GET['web']) ? $_GET['web'] : null;
 $module->emDebug("Pid: " . $pid);
 
 $appt_form = 'demographics';
@@ -25,9 +26,17 @@ if ($pid <> $appt_pid) {
 list($appointments, $appt_fields) = retrieveAppointmentList($appt_pid);
 $module->emDebug("Retrieved " . count($appointments) . " appointments");
 
-// Retrieve all patients in registry project
-list($patients, $pat_fields) = retrieveRegistryPatients($registry_pid);
-$module->emDebug("Retrieved " . count($patients) . " patients");
+// Retrieve all patients in registry project that have not already consented or declined
+// Create the filter so we only retrieve patients who have not decided on consent yet.
+$filter = '[cons_eng] = "" and [cons_span] = "" and [decline_total] <> "1"';
+list($patients, $pat_fields) = retrieveRegistryPatients($filter, $registry_pid);
+$module->emDebug("Retrieved " . count($patients) . " patients to update: ");
+
+// Retrieve all patients in registry project that have consented or declined.
+$filter = '[cons_eng] <> "" or [cons_span] <> "" or [decline_total] = "1"';
+list($consented_patients, $unused_fields) = retrieveRegistryPatients($filter, $registry_pid);
+$module->emDebug("Retrieved " . count($consented_patients) . " patients who have consented or declined: ");
+
 // Update any patients that have not yet decided on participating in the study
 list($new_patients, $update_patients) =compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fields, $registry_pid);
 $module->emDebug("Number of new patients: " . count($new_patients));
@@ -35,9 +44,8 @@ $module->emDebug("Number of updated patients: " . count($update_patients));
 
 
 // Save new patients with their closest appointment date
-
-$status_new = savePatientData($registry_pid, $new_patients);
-$status_update = savePatientData($registry_pid, $update_patients);
+$status_new = savePatientData($registry_pid, $new_patients, $consented_patients);
+$status_update = savePatientData($registry_pid, $update_patients, null);
 
 // Save success status
 if ($status_new and $status_update) {
@@ -52,10 +60,12 @@ if ($status_new and $status_update) {
     }
 }
 
-// go back to the runLoader page
-$loader_url = $module->getUrl("pages/runLoader.php", false, true);
-header("Location: " . $loader_url);
-exit;
+if ($web == 1) {
+    // go back to the runLoader page
+    $loader_url = $module->getUrl("pages/runLoader.php", false, true);
+    header("Location: " . $loader_url);
+}
+return;
 
 function retrieveAppointmentList($appt_pid) {
 
@@ -87,7 +97,7 @@ function retrieveAppointmentList($appt_pid) {
         $providers = '';
     }
 
-    // Create the filter so we only retrieve appointments that in the future
+    // Create the filter so we only retrieve appointments that are in the future for the providers listed in the config
     $now = date('Y-m-d H:i:s');
     $filter = '[appt_date] > "' . $now . '"' . $providers;
     $module->emDebug("Filter: " . $filter);
@@ -109,7 +119,7 @@ function retrieveAppointmentList($appt_pid) {
             // Check to see if we already have an appt for this patient, if not, add it.
             $mrn = str_replace('-', '', $one_appt['mrn']);
             $one_appt['mrn'] = $mrn;
-            if (empty($appointments[$mrn]) ) {
+            if (empty($appointments[$mrn])) {
 
                 $appointments[$mrn] = $one_appt;
             } else {
@@ -117,7 +127,7 @@ function retrieveAppointmentList($appt_pid) {
                 $saved_appt = $appointments[$mrn]['appt_date'];
                 $new_appt_date = $one_appt['appt_date'];
 
-                if ($saved_appt > $new_appt_date ) {
+                if ($saved_appt > $new_appt_date or $saved_appt == '') {
                     // This new appt date is closer to today than the saved appt so save this new date
                     $appointments[$mrn] = $one_appt;
                 }
@@ -132,7 +142,7 @@ function retrieveAppointmentList($appt_pid) {
     return array($appointments, $fields);
 }
 
-function retrieveRegistryPatients($registry_pid) {
+function retrieveRegistryPatients($filter, $registry_pid) {
 
     global $module;
 
@@ -148,9 +158,6 @@ function retrieveRegistryPatients($registry_pid) {
     $first_form = $reg_data_dictionary->firstForm;
     $first_event = $reg_data_dictionary->firstEventId;
     $fields = array_keys($reg_data_dictionary->forms[$first_form]['fields']);
-
-    // Create the filter so we only retrieve patients who have not decided on consent yet.
-    $filter = '[cons_eng] = "" and [cons_span] = "" and [declined] = ""';
 
     // Retrieve all the appointment information from the demographics form
     $params = array(
@@ -177,7 +184,6 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
 
     global $module;
 
-
     // For new patients, find the next record id and get list of fields that are common between the 2 projects
     $next_record_id = findNextRecord($registry_pid);
     $common_fields = array_intersect($appt_fields, $pat_fields);
@@ -196,6 +202,9 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
 
         // Find the name and email of the attending for this appt
         $attending = $providers[upper($appt['clinician'])];
+        if (empty($attending)) {
+            $module->emDebug("Clinican name: '" . upper($appt['clinician']) ."'");
+        }
 
         if (empty($patients[$mrn])) {
 
@@ -216,13 +225,13 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
             // Just update the appointment info and not the demographics
             $update_patient = array_intersect_key($appt, array_flip($update_fields));
             $update_patient['record_id'] = $patients[$mrn]['record_id'];
-            $new_patient['clinician_attending'] = $attending['name'];
-            $new_patient['clinician_email'] = extractEmailFromText($attending['email']);
-            $new_patient['clinstrata'] = $attending['code'];
-            $new_patient['appt_date_time'] = $appt['appt_date'];
+            $update_patient['clinician_attending'] = $attending['name'];
+            $update_patient['clinician_email'] = extractEmailFromText($attending['email']);
+            $update_patient['clinstrata'] = $attending['code'];
             $update_patient['email'] = extractEmailFromText($appt['email']);
             $update_patient['email_overwrite'] = extractEmailFromText($appt['email_overwrite']);
             $update_patient['appt_date'] = substr($appt['appt_date'],0,10);
+            $update_patient['appt_date_time'] = $appt['appt_date'];
             $update_patient_list[] = $update_patient;
         }
     }
@@ -231,22 +240,27 @@ function compareApptsToPatients($appointments, $appt_fields, $patients, $pat_fie
     return array($new_patient_list, $update_patient_list);
 }
 
-function savePatientData($pid, $data) {
+function savePatientData($pid, $data, $dont_save_patients) {
 
     global $module;
 
     $module->emDebug("Project ID:$pid");
-    $module->emDebug("data:".count($data));
-    foreach($data as $one_patient){
-        $one_patient['enrollment_complete']=2;
-        $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)),'overwrite');
-        if (!empty($response['errors'])) {
-            $module->emError("Could not save patient data for project $pid. Error " . $response['errors']);
-            $module->emDebug("Return From Save Data:" . json_encode($response));
-            //REDCap::logEvent("PRO-HF EM","Could not save patient data for project Error " .json_encode( $response['errors']));
-        }
+    //$module->emDebug("data:". json_encode($data));
 
+    foreach($data as $one_patient){
+        $mrn = $one_patient['mrn'];
+
+        // See if this person has already consented or declined.  If so, don't update or save them.
+        if (is_null($dont_save_patients) or empty($dont_save_patients[$mrn])) {
+            $one_patient['enrollment_complete'] = 2;
+            $response = REDCap::saveData($pid, 'json', json_encode(array($one_patient)), 'overwrite');
+            if (!empty($response['errors'])) {
+                $module->emError("Could not save patient data for project $pid. Error " . $response['errors']);
+                $module->emDebug("Return From Save Data:" . json_encode($response));
+            }
+        }
     }
+
     return true;
 }
 

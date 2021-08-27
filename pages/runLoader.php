@@ -2,7 +2,7 @@
 namespace Stanford\ProHF;
 /** @var \Stanford\ProHF\ProHF $module */
 
-$url = $module->getUrl("pages/apptDataToRegistry.php", false, true);
+$url = $module->getUrl("pages/apptDataToRegistry.php", false, true) . "&web=1";
 
 ?>
 
